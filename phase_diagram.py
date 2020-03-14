@@ -61,12 +61,20 @@ def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
     """
 
     name_substance = name_of_substance
+
     # solid-liquid
-    temperature_melt = np.linspace(
-        temperature_triple - 5.0, temperature_triple, 100)
-    pressure_melt = pressure_triple + \
-        ((enthalpy_melt / volume_melt) * 10e5) * \
-        np.log(temperature_melt / temperature_triple)
+    if name_substance == 'water':
+        temperature_melt = np.linspace(
+            temperature_triple - 5.0, temperature_triple, 200)
+        pressure_melt = pressure_triple + \
+            (-(enthalpy_melt / volume_melt) * 10e5) * \
+            np.log(temperature_melt / temperature_triple)
+    else:
+        temperature_melt = np.linspace(
+            temperature_triple, temperature_crit, 200)
+        pressure_melt = pressure_triple + \
+            ((enthalpy_melt / volume_melt) * 10e5) * \
+            np.log(temperature_melt / temperature_triple)
 
     # solid-gas
     temperature_sub = np.linspace(
@@ -88,17 +96,44 @@ def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
     B = np.linspace(B_ant_int, B_ant_fin, 100)
     C = np.linspace(C_ant_init, C_ant_fin, 100)
 
-    # 10e5 is for conversion from bar to pascal (data in NIST in bar
+    # 10e5 is for conversion from bar to pascal (data in NIST in bar)
     pressure_vap_antoine = (
         10 ** (A - (B/(C + temperature_vap_antoine)))) * 10 ** 5
 
+    # supercritical fluid
+    temperature_supercritical_fluid_constant = np.linspace(
+        temperature_crit, temperature_crit, 100)
+    pressure_supercritical_fluid_constant = np.linspace(
+        pressure_crit, pressure_crit, 100)
+    temperature_supercritical_fluid = np.linspace(
+        temperature_crit, temperature_crit * 1.5, 100)
+    pressure_supercritical_fluid = np.linspace
+        pressure_crit, pressure_crit * 1000, 100)
+
     figure = plt.figure(figsize=(12, 10))
+    plt.annotate('Solid', xy=(200, 10e4), xytext=(
+        temperature_triple - 50, pressure_triple * 10))
+    plt.annotate('Liquid', xy=(200, 10e4), xytext=(
+        temperature_triple + 10, pressure_triple * 100))
+    plt.annotate('Gas', xy=(200, 10e4), xytext=(
+        temperature_triple + 20, pressure_triple / 10))
+    plt.annotate('Supercritical fluid ', xy=(200, 10e4), xytext=(
+        temperature_crit + 40, pressure_crit * 10))
+    plt.annotate('Note: the red and green lines are the plot of the liquid-vapor equation of Antoine and Clausius-Clapeyron respectively.',
+                 xy=(200, 10e4), xytext=(temperature_triple - 50, pressure_triple / 400))
+
     plt.semilogy(temperature_melt, pressure_melt, linewidth=3.0)
     plt.semilogy(temperature_sub, pressure_sub, color='orange', linewidth=3.0)
     plt.semilogy(temperature_vap, pressure_vap,
                  '--', color='red', linewidth=3.0)
     plt.semilogy(temperature_vap_antoine, pressure_vap_antoine,
                  color='green', linewidth=3.0)
+    plt.semilogy(temperature_supercritical_fluid_constant,
+                 pressure_supercritical_fluid, '--', color='grey',
+                 linewidth=3.0)
+    plt.semilogy(temperature_supercritical_fluid,
+                 pressure_supercritical_fluid_constant, '--', color='grey',
+                 linewidth=3.0)
     plt.scatter(temperature_crit, pressure_crit, s=100,
                 facecolors='none', edgecolors='k')
     plt.scatter(temperature_triple, pressure_triple,
@@ -106,6 +141,7 @@ def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
     plt.xlabel('Temperature [K]')
     plt.ylabel('Pressure [Pa]')
     plt.title('Phase diagram of ' + name_substance)
+
     plt.savefig('Phase diagram of ' + name_substance)
     return plt.show()
 
