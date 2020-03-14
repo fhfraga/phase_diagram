@@ -107,7 +107,7 @@ def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
         pressure_crit, pressure_crit, 100)
     temperature_supercritical_fluid = np.linspace(
         temperature_crit, temperature_crit * 1.5, 100)
-    pressure_supercritical_fluid = np.linspace
+    pressure_supercritical_fluid = np.linspace(
         pressure_crit, pressure_crit * 1000, 100)
 
     figure = plt.figure(figsize=(12, 10))
