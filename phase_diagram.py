@@ -5,7 +5,7 @@ from scipy import constants
 
 def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
                   pressure_crit, enthalpy_melt, volume_melt, enthalpy_sub,
-                  enthalpy_vap, A_ant_init, A_ant_fin, B_ant_int, B_ant_fin,
+                  enthalpy_vap, A_ant_init, A_ant_fin, B_ant_init, B_ant_fin,
                   C_ant_init, C_ant_fin, gas_constant=constants.gas_constant):
     """[summary]
 
@@ -93,7 +93,7 @@ def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
     temperature_vap_antoine = np.linspace(
         temperature_triple, temperature_crit, 100)
     A = np.linspace(A_ant_init, A_ant_fin, 100)
-    B = np.linspace(B_ant_int, B_ant_fin, 100)
+    B = np.linspace(B_ant_init, B_ant_fin, 100)
     C = np.linspace(C_ant_init, C_ant_fin, 100)
 
     # 10e5 is for conversion from bar to pascal (data in NIST in bar)
@@ -119,15 +119,18 @@ def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
         temperature_triple + 20, pressure_triple / 10))
     plt.annotate('Supercritical fluid ', xy=(200, 10e4), xytext=(
         temperature_crit + 40, pressure_crit * 10))
-    plt.annotate('Note: the red and green lines are the plot of the liquid-vapor equation of Antoine and Clausius-Clapeyron respectively.',
-                 xy=(200, 10e4), xytext=(temperature_triple - 50, pressure_triple / 400))
 
     plt.semilogy(temperature_melt, pressure_melt, linewidth=3.0)
     plt.semilogy(temperature_sub, pressure_sub, color='orange', linewidth=3.0)
     plt.semilogy(temperature_vap, pressure_vap,
                  '--', color='red', linewidth=3.0)
-    plt.semilogy(temperature_vap_antoine, pressure_vap_antoine,
-                 color='green', linewidth=3.0)
+
+    if B_ant_init == 0:
+            plt.semilogy(0, 0)
+    else:
+        plt.semilogy(temperature_vap_antoine, pressure_vap_antoine,
+                     color='green', linewidth=3.0)
+
     plt.semilogy(temperature_supercritical_fluid_constant,
                  pressure_supercritical_fluid, '--', color='grey',
                  linewidth=3.0)
@@ -173,7 +176,7 @@ A_ant_init = eval(
     input('Antoine equation parameters - A of the triple point: '))
 A_ant_fin = eval(
     input('Antoine equation parameter -  A of the critical point: '))
-B_ant_int = eval(
+B_ant_init = eval(
     input('Antoine equation parameters - B of the triple point: '))
 B_ant_fin = eval(
     input('Antoine equation parameter -  B of the critical point: '))
@@ -185,5 +188,5 @@ C_ant_fin = eval(
 
 phase_diagram(temperature_triple, pressure_triple, temperature_crit,
               pressure_crit, enthalpy_melt, volume_melt, enthalpy_sub,
-              enthalpy_vap, A_ant_init, A_ant_fin, B_ant_int, B_ant_fin,
+              enthalpy_vap, A_ant_init, A_ant_fin, B_ant_init, B_ant_fin,
               C_ant_init, C_ant_fin)
