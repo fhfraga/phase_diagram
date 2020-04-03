@@ -1,13 +1,6 @@
-<<<<<<< HEAD
-# pdf
-.pdf/
-
-# vscode
-.vscode/
-=======
 # this project
-*.pdf
->>>>>>> 112d70ade26d8a631acc4bd9d2ef663c4dea80e9
+.pdf/
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -114,6 +107,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.phase/
 
 # Spyder project settings
 .spyderproject
