@@ -3,6 +3,7 @@ import numpy as np
 from scipy import constants
 import pint
 import pandas as pd
+import re
 
 DF = pd.read_csv('data/data.csv')
 
@@ -80,16 +81,18 @@ class PhaseDiagram:
         if V_melt > 0:
             temp_range = -temp_range
 
-        T_arr = np.linspace(self.TP_temperature.magnitude -
-                            temp_range, self.TP_temperature.magnitude, 100) * ureg.K
+        T_arr = np.linspace(self.TP_temperature.magnitude,
+                            self.TP_temperature.magnitude-temp_range,
+                            100) * ureg.K
         cte = self.H_melt / V_melt
         P_arr = self.TP_pressure + cte * np.log(T_arr / self.TP_temperature)
         return T_arr, P_arr
 
     def clapeyron_sv(self, temp_range=60):
         # P(T) = P' exp[ (H_sub / R) (1 / T' - 1 / T) ]
-        T_arr = np.linspace(self.TP_temperature.magnitude -
-                            temp_range, self.TP_temperature.magnitude, 100) * ureg.K
+        T_arr = np.linspace(self.TP_temperature.magnitude - temp_range,
+                            self.TP_temperature.magnitude,
+                            100) * ureg.K
         cte = self.H_sub / gas_constant
         P_arr = self.TP_pressure * \
             np.exp(cte * (1/self.TP_temperature - 1/T_arr))
@@ -98,7 +101,8 @@ class PhaseDiagram:
     def clapeyron_lv(self):
         # P(T) = P' exp[ (H_vap / R) (1 / T' - 1 / T) ]
         T_arr = np.linspace(self.TP_temperature.magnitude,
-                            self.CP_temperature.magnitude, 100) * ureg.K
+                            self.CP_temperature.magnitude,
+                            100) * ureg.K
 
         if np.isnan(self.H_vap_boil.magnitude):
             H_vap = self.H_vap
@@ -126,3 +130,104 @@ class PhaseDiagram:
         P_arr = 10**right_side * ureg.Pa
 
         return T_arr, P_arr, A, B, C, Tmin, Tmax
+
+    def format_formula(self):
+        # displaying chemical formulas in a proper way
+        label_formula = re.sub("([0-9])", "_\\1", self.formula)
+        label_formula = '$\mathregular{'+label_formula+'}$'
+        return label_formula
+
+    def _plot_params(self, ax=None):
+        linewidth = 2
+        size = 12
+
+        # grid and ticks settings
+        ax.minorticks_on()
+        ax.grid(b=True, which='major', linestyle='--',
+                linewidth=linewidth - 0.5)
+        ax.grid(b=True, which='minor', axis='both',
+                linestyle=':', linewidth=linewidth - 1)
+        ax.tick_params(which='both', labelsize=size+2)
+        ax.tick_params(which='major', length=6, axis='both')
+        ax.tick_params(which='minor', length=3, axis='both')
+
+        # labels and size
+        ax.xaxis.label.set_size(size+4)
+        ax.yaxis.label.set_size(size+4)
+        # ax.title.set_fontsize(size+6)  # not working, don't know why...
+
+    def plot(self, parts=(1, 1, 0, 1), size=(10, 8), ax=None, T_unit='K',
+             P_unit='Pa', scale_log=True, legend=False, title=True,
+             title_text=''):
+        if ax is None:
+            fig, ax = plt.subplots(figsize=size, facecolor=(1.0, 1.0, 1.0))
+
+        self._plot_params(ax)
+
+        linewidth = 3.0
+
+        if parts[0] == 1:
+            T_clapeyron_sl, P_clapeyron_sl = self.clapeyron_sl()
+
+            # ax.plot(T_clapeyron_sl.to(T_unit), P_clapeyron_sl.to(P_unit))
+            # in order to avoid long SL lines, limit the pressure values to
+            # those lower than self.CP_pressure
+            P_clapeyron_sl = P_clapeyron_sl[P_clapeyron_sl < self.CP_pressure]
+            ax.plot(T_clapeyron_sl[:len(P_clapeyron_sl)].to(T_unit),
+                    P_clapeyron_sl.to(P_unit),
+                    'k-', label='SL boundary', linewidth=linewidth)
+
+        if parts[1] == 1:
+            T_clapeyron_sv, P_clapeyron_sv = self.clapeyron_sv()
+            ax.plot(T_clapeyron_sv.to(T_unit),
+                    P_clapeyron_sv.to(P_unit),
+                    'b-', label='SV boundary', linewidth=linewidth)
+
+        if parts[2] == 1:
+            T_clapeyron_lv, P_clapeyron_lv = self.clapeyron_lv()
+            ax.plot(T_clapeyron_lv.to(T_unit),
+                    P_clapeyron_lv.to(P_unit),
+                    'g--', label='LV boundary', linewidth=linewidth)
+
+        if parts[3] == 1:
+            T_antoine_lv, P_antoine_lv, *_ = self.antoine_lv()
+            ax.plot(T_antoine_lv.to(T_unit),
+                    P_antoine_lv.to(P_unit),
+                    'r-', label='LV boundary - Antoine', linewidth=linewidth)
+
+        if parts[2] == 1 or parts[3] == 1:
+            ax.scatter(self.CP_temperature, self.CP_pressure,
+                       s=100, label='Critical Point',
+                       facecolors='orange', edgecolors='orange', zorder=3)
+
+        ax.scatter(self.TP_temperature, self.TP_pressure,
+                   s=100, label='Triple Point',
+                   facecolors='m', edgecolors='m', zorder=3)
+
+        if scale_log:
+            ax.set_yscale('log')
+            ax.set_ylabel('log(Pressure / {:~P})'.format(ureg(P_unit).units))
+        else:
+            # setting the y-axis to scientific notation and
+            # getting the order of magnitude
+            ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+            ax.yaxis.major.formatter._useMathText = True
+            ax.figure.canvas.draw()  # Update the text
+            order_magnitude = ax.yaxis.get_offset_text().get_text().replace('\\times', '')
+            ax.yaxis.offsetText.set_visible(False)
+            ax.set_ylabel('Pressure / ' + order_magnitude +
+                          ' {:~P}'.format(ureg(P_unit).units))
+
+        ax.set_xlabel('Temperature / {:~P}'.format(ureg(T_unit).units))
+
+        if legend:
+            ax.legend(loc='best', fontsize=14,
+                      title=self.format_formula(), title_fontsize=14)
+
+        if not title:
+            pass
+        elif title_text == '':
+            ax.set_title('Calculated phase diagram - ' + self.format_formula(),
+                         fontsize=18)
+        else:
+            ax.set_title(title_text, fontsize=18)
