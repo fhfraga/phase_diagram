@@ -1,5 +1,7 @@
 # Phase diagram
 
+![Phase diagram](phase_diagram_water.png)
+
 A simple script to plot phase diagrams.
 
 A phase diagram in physical chemistry, engineering, mineralogy, and materials
@@ -11,17 +13,39 @@ Peter Atkins defines in his  book *Physical Chemistry* that "**phase** identifie
 of matter, not only about the chemical composition, but also concerning its physical state". This book that can be found at [Amazon](https://www.amazon.com/Physical-Chemistry-9th-Peter-Atkins/dp/1429218126/ref=sr_1_5?keywords=physical+chemistry+nine+edition&qid=1583607029&sr=8-5)
 
 
-# Installation
+# Installation and requirements
 
-Just clone or download this repo. This is not a package
+This project relies mainly on [SciPy](https://matplotlib.org/),
+[Matplotlib](https://numpy.org/), [numpy](https://numpy.org/),
+[Pandas](https://pandas.pydata.org/) and [Pint](https://pint.readthedocs.io/en/stable/).
+
+Just clone or download this repo. This is not a package yet. We recommend
+creating a environment and install the requirements from the `requirements.txt` file.
+Assuming that you cloned the repo in a folder called `phase_diagram` and that
+you will name the environment as `.env`:
+
+```bash
+cd phase_diagram
+pip install venv
+python3 -m venv .env
+source .env/bin/activate
+```
+Verify the python path. It must be related to your project folder:
+
+```bash
+which python
+```
+
+Finally, install the requirements:
+
+```bash
+pip install -r requirements.txt
+```
 
 # Usage
 
 See the [tutorial](phase_diagram_tutorial.ipynb)
 
-# Under the hood - requirements
-
-This project relies mainly on [SciPy](https://matplotlib.org/), [Matplotlib](https://numpy.org/) and [numpy](https://numpy.org/).
 
 # Contributing
 
