@@ -334,3 +334,17 @@ class PhaseDiagram:
             ax.set_title(title_text, fontsize=18)
 
         return ax
+
+
+if __name__ == "__main__":
+    print()
+    print()
+    print('#'*78)
+    print('# {0:^74} #'.format('Phase diagram'))
+    print('#'*78)
+    print()
+    user_input = input('Compound name, formula or CAS number: ')
+    fig, ax = plt.subplots(constrained_layout=True, facecolor=(1, 1, 1))
+    compound = PhaseDiagram(user_input)
+    compound.plot(ax=ax)
+    plt.show()
