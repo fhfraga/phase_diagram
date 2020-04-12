@@ -19,6 +19,19 @@ gas_constant = constants.gas_constant * ureg.J/(ureg.mol*ureg.K)
 
 class PhaseDiagram:
     def __init__(self, compound):
+        """Object initialization
+
+        Parameters
+        ----------
+        compound : string
+            A valid formula, name or CAS number
+
+        Raises
+        ------
+        ValueError
+            Not a valid formula, name or CAS number. Compound not in the
+            available data.
+        """
         search = DF.loc[:, ['Name', 'Formula', 'CAS_number']].isin([compound])
         mask = search.any()
 
@@ -26,7 +39,7 @@ class PhaseDiagram:
             column = mask[mask == True].index[0]
             self.idx = search[column][search[column] == True].index[0]
         else:
-            raise ValueError
+            raise ValueError('Not a valid compound.')
 
         # compound identification
         self.name = DF.iloc[self.idx, 0]
@@ -72,7 +85,19 @@ class PhaseDiagram:
         self.antoine_Tmax = DF.iloc[self.idx, DF.columns.get_loc('Tmax')]
 
     def clapeyron_sl(self, temp_range=5):
-        # P(T) = P' + (H_melt / V_melt) ln(T / T')
+        """Clausius-Clapeyron solid-liquid line data
+
+        Parameters
+        ----------
+        temp_range : int, optional
+            Temperature range around the triple point, by default 5
+
+        Returns
+        -------
+        tuple
+            Tuple of arrays (temperature, pressure)
+        """
+        # P(T) = P' + (H_melt / V_melt) ln(T / T') where T' is TP_temperature
         if np.isnan(self.V_melt.magnitude):
             V_melt = self.V_melt_calc
         else:
@@ -89,7 +114,19 @@ class PhaseDiagram:
         return T_arr, P_arr
 
     def clapeyron_sv(self, temp_range=60):
-        # P(T) = P' exp[ (H_sub / R) (1 / T' - 1 / T) ]
+        """Clausius-Clapeyron solid-vapor line data
+
+        Parameters
+        ----------
+        temp_range : int, optional
+            Temperature range around the triple point, by default 60
+
+        Returns
+        -------
+        tuple
+            Tuple of arrays (temperature, pressure)
+        """
+        # P(T) = P' exp[ (H_sub / R) (1 / T' - 1 / T) ] where T' is TP_temperature
         T_arr = np.linspace(self.TP_temperature.magnitude - temp_range,
                             self.TP_temperature.magnitude,
                             100) * ureg.K
@@ -99,7 +136,14 @@ class PhaseDiagram:
         return T_arr, P_arr
 
     def clapeyron_lv(self):
-        # P(T) = P' exp[ (H_vap / R) (1 / T' - 1 / T) ]
+        """Clausius-Clapeyron liquid-vapor line data
+
+        Returns
+        -------
+        tuple
+            Tuple of arrays (temperature, pressure)
+        """
+        # P(T) = P' exp[ (H_vap / R) (1 / T' - 1 / T) ] where T' is TP_temperature
         T_arr = np.linspace(self.TP_temperature.magnitude,
                             self.CP_temperature.magnitude,
                             100) * ureg.K
@@ -115,6 +159,14 @@ class PhaseDiagram:
         return T_arr, P_arr
 
     def antoine_lv(self):
+        """Antoine liquid-vapor line data
+
+        Returns
+        -------
+        tuple
+            A, B and C for SI units. Temperature range (Tmin and Tmax) in Kelvin
+            (temperature array, pressure array, A, B, C, Tmin, Tmax)
+        """
         # log10(P) = A - (B / (C + T))
         T_arr = np.linspace(self.TP_temperature.magnitude,
                             self.CP_temperature.magnitude, 100) * ureg.K
@@ -132,12 +184,25 @@ class PhaseDiagram:
         return T_arr, P_arr, A, B, C, Tmin, Tmax
 
     def format_formula(self):
-        # displaying chemical formulas in a proper way
+        """ Display chemical formulas in a proper way
+
+        Returns
+        -------
+        string
+            LaTeX code to display chemical formulas in a proper way
+        """
         label_formula = re.sub("([0-9])", "_\\1", self.formula)
         label_formula = '$\mathregular{'+label_formula+'}$'
         return label_formula
 
     def _plot_params(self, ax=None):
+        """Internal function for plot parameters.
+
+        Parameters
+        ----------
+        ax : Matplotlib axes, optional
+            axes where the graph will be plotted, by default None
+        """
         linewidth = 2
         size = 12
 
@@ -156,9 +221,45 @@ class PhaseDiagram:
         ax.yaxis.label.set_size(size+4)
         # ax.title.set_fontsize(size+6)  # not working, don't know why...
 
+        return
+
     def plot(self, parts=(1, 1, 0, 1), size=(10, 8), ax=None, T_unit='K',
              P_unit='Pa', scale_log=True, legend=False, title=True,
              title_text=''):
+        """Plot function
+
+        Parameters
+        ----------
+        parts : tuple, optional
+            which lines will be plotted, by default (1, 1, 0, 1)
+            By default, the solid-liquid, solid-vapor and liquid-vapor from
+            Antoine equation lines are plotted. This can be changed with 0 and
+            1's in a tuple`. 0 means turn off and 1 means turn on. The order in
+            the tuple is:
+            (solid-liquid Clausius-Clapeyron, solid-vapor Clausius-Clapeyron,
+            liquid-vapor Clausius-Clapeyron, liquid-vapor Antoine)
+        size : tuple, optional
+            plot size, by default (10, 8)
+        ax : Matplotlib axes, optional
+            axes where the graph will be plotted, by default None
+        T_unit : str, optional
+            temperature unit, by default 'K'
+        P_unit : str, optional
+            pressure unit, by default 'Pa'
+        scale_log : bool, optional
+            logarithmic scale, by default True
+        legend : bool, optional
+            If a legend will be shown, by default False
+        title : bool, optional
+            If the plot will have a title, by default True
+        title_text : str, optional
+            Title text, by default ''
+
+        Returns
+        -------
+        Matplotlib axes
+            axes where the graph will be plotted
+        """
         if ax is None:
             fig, ax = plt.subplots(figsize=size, facecolor=(1.0, 1.0, 1.0))
 
@@ -231,3 +332,5 @@ class PhaseDiagram:
                          fontsize=18)
         else:
             ax.set_title(title_text, fontsize=18)
+
+        return ax
