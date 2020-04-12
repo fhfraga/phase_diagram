@@ -1,0 +1,4 @@
+Name,Formula,CAS_number,Molar_mass,d_solid,d_liquid,d_gas,TP_temperature,TP_pressure,CP_temperature,CP_pressure,CP_density,BP_temperature,MP_temperature,A,B,C,Tmin,Tmax,H_melt,S_melt,V_melt,V_melt_calc,H_vap,H_vap_boil,S_vap,V_vap,V_vap_calc,H_sub,S_sub,V_sub,V_sub_calc
+water,H2O,7732-18-5,18.0153,0.915,0.9999,0.0005974,273.16,611.73,647.3,2.21E+07,17.91,373.17,273.15,8.05573,1723.6425,233.08,0.01,373.98,6.01,22,-1.634,-1.672,44.9,40.66,165,22050,30138,50.9,186,22048,30136
+carbon dioxide,CO2,124-38-9,44.0095,1.562,1.101,,216.55,5.17E+05,304.25,7.38E+06,,194.71,,7.58828,861.8205,271.88,-56.57,31.04,9.02,,,11.797,,15.8,,,,25.2,,,
+iodine,I2,7553-56-2,253.80894,4.933,3.96,,386.65,1.21E+04,819.15,1.17E+07,,457.45,,7.10736,1556.9694,183.97,-31.15,546,150.66,,,12.642,,41.6,,,,62.4,,,

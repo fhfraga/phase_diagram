@@ -1,152 +1,339 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import constants
+import pint
+import pandas as pd
+import re
+
+DF = pd.read_csv('data/data.csv')
+
+FORMULAS = DF['Formula']
+NAMES = DF['Name']
+CAS = DF['CAS_number']
+
+ureg = pint.UnitRegistry()
+ureg.setup_matplotlib(True)
+
+gas_constant = constants.gas_constant * ureg.J/(ureg.mol*ureg.K)
 
 
-def phase_diagram(temperature_triple, pressure_triple, temperature_crit,
-                  pressure_crit, enthalpy_melt, volume_melt, enthalpy_sub,
-                  enthalpy_vap, A_ant_init, A_ant_fin, B_ant_init, B_ant_fin,
-                  C_ant_init, C_ant_fin, gas_constant=constants.gas_constant):
-    """[summary]
+class PhaseDiagram:
+    def __init__(self, compound):
+        """Object initialization
 
-    Parameters
-    temperature_triple : float
-        It's the temperature where the three phases of the substance
-        (solid, liquid and gas) coexist in thermodynamic equilibrium.
-        Dimension: temperature
-    pressure_triple : float
-        It's the pressure where the three phases of the substance
-        (solid, liquid and gas) coexist in thermodynamic equilibrium
-        Dimension: pressure
-    temperature_crit : float
-        It's the final temperature of a phase equilibrium curve
-        Dimension: temperature
-    pressure_crit : float
-        It's the final temperature and pressure of a phase equilibrium curve
-        Dimension: pressure
-    enthalpy_melt : float
-        Melting enthalpy of a substance
-        Dimension: energy
-    volume_melt : float
-        Volume of melting of a substance
-        Dimension: Volume
-    enthalpy_sub : float
-        Sublimation enthalpy of a substance
-        Dimension: energia
-    enthalpy_vap : float
-        Boiling enthalpy of the substance
-        Dimension: energia
-    A_ant_init : float
-        Antoine constant initial number for triple point temperature
-        Dimensionless
-    A_ant_fin : float
-        Final number of Antoine constant for critical point temperature
-        Dimensionless
-    B_ant_int : float
-        Antoine constant initial number for triple point temperature
-        Dimensionless
-    B_ant_fin : float
-        Final number of Antoine constant for critical point temperature
-        Dimensionless
-    C_ant_init : float
-        Antoine constant initial number for triple point temperature
-        Dimensionless
-    C_ant_fin : float
-        Final number of Antoine constant for critical point temperature
-        Dimensionless
-    gas_constant : float, optional
-       Ideal gas constant , by default constants.gas_constant
-        Dimension: Expressed in units of energy per temperature increment per
-        mole
-    """
+        Parameters
+        ----------
+        compound : string
+            A valid formula, name or CAS number
 
-    name_substance = name_of_substance
+        Raises
+        ------
+        ValueError
+            Not a valid formula, name or CAS number. Compound not in the
+            available data.
+        """
+        search = DF.loc[:, ['Name', 'Formula', 'CAS_number']].isin([compound])
+        mask = search.any()
 
-    # solid-liquid
-    if name_substance == 'water':
-        temperature_melt = np.linspace(
-            temperature_triple - 5.0, temperature_triple, 200)
-        pressure_melt = pressure_triple + \
-            (-(enthalpy_melt / volume_melt) * 10e5) * \
-            np.log(temperature_melt / temperature_triple)
-    else:
-        temperature_melt = np.linspace(
-            temperature_triple, temperature_crit, 200)
-        pressure_melt = pressure_triple + \
-            ((enthalpy_melt / volume_melt) * 10e5) * \
-            np.log(temperature_melt / temperature_triple)
+        if mask.any():
+            column = mask[mask == True].index[0]
+            self.idx = search[column][search[column] == True].index[0]
+        else:
+            raise ValueError('Not a valid compound.')
 
-    # solid-gas
-    temperature_sub = np.linspace(
-        temperature_triple - 60.0, temperature_triple, 100)
-    pressure_sub = pressure_triple * \
-        np.exp((enthalpy_sub / gas_constant) *
-               ((1/temperature_triple) - (1/temperature_sub)))
+        # compound identification
+        self.name = DF.iloc[self.idx, 0]
+        self.formula = DF.iloc[self.idx, 1]
+        self.cas = DF.iloc[self.idx, 2]
 
-    # liquid-gas (Equation Clausius-Clapeyron)
-    temperature_vap = np.linspace(temperature_triple, temperature_crit, 100)
-    pressure_vap = pressure_triple * \
-        np.exp((enthalpy_vap/gas_constant) *
-               ((1/temperature_triple) - (1/temperature_vap)))
+        # triple point
+        self.TP_temperature = DF.iloc[self.idx, DF.columns.get_loc(
+            'TP_temperature')] * ureg.kelvin
 
-    # líquid-gas (Equation Antoine)
-    temperature_vap_antoine = np.linspace(
-        temperature_triple, temperature_crit, 100)
-    A = np.linspace(A_ant_init, A_ant_fin, 100)
-    B = np.linspace(B_ant_init, B_ant_fin, 100)
-    C = np.linspace(C_ant_init, C_ant_fin, 100)
+        self.TP_pressure = DF.iloc[self.idx, DF.columns.get_loc(
+            'TP_pressure')] * ureg.pascal
 
-    # 10e5 is for conversion from bar to pascal (data in NIST in bar)
-    pressure_vap_antoine = (
-        10 ** (A - (B/(C + temperature_vap_antoine)))) * 10 ** 5
+        # critical point
+        self.CP_temperature = DF.iloc[self.idx, DF.columns.get_loc(
+            'CP_temperature')] * ureg.kelvin
+        self.CP_pressure = DF.iloc[self.idx, DF.columns.get_loc(
+            'CP_pressure')] * ureg.pascal
 
-    # supercritical fluid
-    temperature_supercritical_fluid_constant = np.linspace(
-        temperature_crit, temperature_crit, 100)
-    pressure_supercritical_fluid_constant = np.linspace(
-        pressure_crit, pressure_crit, 100)
-    temperature_supercritical_fluid = np.linspace(
-        temperature_crit, temperature_crit * 1.5, 100)
-    pressure_supercritical_fluid = np.linspace(
-        pressure_crit, pressure_crit * 1000, 100)
+        # fusion
+        self.H_melt = DF.iloc[self.idx, DF.columns.get_loc(
+            'H_melt')] * ureg.kJ / ureg.mol
+        self.V_melt = DF.iloc[self.idx, DF.columns.get_loc(
+            'V_melt')] * ureg.cc / ureg.mol
+        self.V_melt_calc = DF.iloc[self.idx, DF.columns.get_loc(
+            'V_melt_calc')] * ureg.cc / ureg.mol
 
-    figure = plt.figure(figsize=(12, 10))
-    plt.annotate('Solid', xy=(200, 10e4), xytext=(
-        temperature_triple - 50, pressure_triple * 10))
-    plt.annotate('Liquid', xy=(200, 10e4), xytext=(
-        temperature_triple + 10, pressure_triple * 100))
-    plt.annotate('Gas', xy=(200, 10e4), xytext=(
-        temperature_triple + 20, pressure_triple / 10))
-    plt.annotate('Supercritical fluid ', xy=(200, 10e4), xytext=(
-        temperature_crit + 40, pressure_crit * 10))
+        # vaporization
+        self.H_vap = DF.iloc[self.idx, DF.columns.get_loc(
+            'H_vap')] * ureg.kJ / ureg.mol
+        self.H_vap_boil = DF.iloc[self.idx, DF.columns.get_loc(
+            'H_vap_boil')] * ureg.kJ / ureg.mol
 
-    plt.semilogy(temperature_melt, pressure_melt, linewidth=3.0)
-    plt.semilogy(temperature_sub, pressure_sub, color='orange', linewidth=3.0)
-    plt.semilogy(temperature_vap, pressure_vap,
-                 '--', color='red', linewidth=3.0)
+        # sublimation
+        self.H_sub = DF.iloc[self.idx, DF.columns.get_loc(
+            'H_sub')] * ureg.kJ / ureg.mol
 
-    if B_ant_init == 0:
-            plt.semilogy(0, 0)
-    else:
-        plt.semilogy(temperature_vap_antoine, pressure_vap_antoine,
-                     color='green', linewidth=3.0)
+        # Antoine equation. Pressure in mmHg and temperature in Celsius
+        self.antoine_A = DF.iloc[self.idx, DF.columns.get_loc('A')]
+        self.antoine_B = DF.iloc[self.idx, DF.columns.get_loc('B')]
+        self.antoine_C = DF.iloc[self.idx, DF.columns.get_loc('C')]
+        self.antoine_Tmin = DF.iloc[self.idx, DF.columns.get_loc('Tmin')]
+        self.antoine_Tmax = DF.iloc[self.idx, DF.columns.get_loc('Tmax')]
 
-    plt.semilogy(temperature_supercritical_fluid_constant,
-                 pressure_supercritical_fluid, '--', color='grey',
-                 linewidth=3.0)
-    plt.semilogy(temperature_supercritical_fluid,
-                 pressure_supercritical_fluid_constant, '--', color='grey',
-                 linewidth=3.0)
-    plt.scatter(temperature_crit, pressure_crit, s=100,
-                facecolors='none', edgecolors='k')
-    plt.scatter(temperature_triple, pressure_triple,
-                s=100, facecolors='none', edgecolors='k')
-    plt.xlabel('Temperature [K]')
-    plt.ylabel('Pressure [Pa]')
-    plt.title('Phase diagram of ' + name_substance)
+    def clapeyron_sl(self, temp_range=5):
+        """Clausius-Clapeyron solid-liquid line data
 
-    plt.savefig('Phase diagram of ' + name_substance)
-    return plt.show()
+        Parameters
+        ----------
+        temp_range : int, optional
+            Temperature range around the triple point, by default 5
+
+        Returns
+        -------
+        tuple
+            Tuple of arrays (temperature, pressure)
+        """
+        # P(T) = P' + (H_melt / V_melt) ln(T / T') where T' is TP_temperature
+        if np.isnan(self.V_melt.magnitude):
+            V_melt = self.V_melt_calc
+        else:
+            V_melt = self.V_melt
+
+        if V_melt > 0:
+            temp_range = -temp_range
+
+        T_arr = np.linspace(self.TP_temperature.magnitude,
+                            self.TP_temperature.magnitude-temp_range,
+                            100) * ureg.K
+        cte = self.H_melt / V_melt
+        P_arr = self.TP_pressure + cte * np.log(T_arr / self.TP_temperature)
+        return T_arr, P_arr
+
+    def clapeyron_sv(self, temp_range=60):
+        """Clausius-Clapeyron solid-vapor line data
+
+        Parameters
+        ----------
+        temp_range : int, optional
+            Temperature range around the triple point, by default 60
+
+        Returns
+        -------
+        tuple
+            Tuple of arrays (temperature, pressure)
+        """
+        # P(T) = P' exp[ (H_sub / R) (1 / T' - 1 / T) ] where T' is TP_temperature
+        T_arr = np.linspace(self.TP_temperature.magnitude - temp_range,
+                            self.TP_temperature.magnitude,
+                            100) * ureg.K
+        cte = self.H_sub / gas_constant
+        P_arr = self.TP_pressure * \
+            np.exp(cte * (1/self.TP_temperature - 1/T_arr))
+        return T_arr, P_arr
+
+    def clapeyron_lv(self):
+        """Clausius-Clapeyron liquid-vapor line data
+
+        Returns
+        -------
+        tuple
+            Tuple of arrays (temperature, pressure)
+        """
+        # P(T) = P' exp[ (H_vap / R) (1 / T' - 1 / T) ] where T' is TP_temperature
+        T_arr = np.linspace(self.TP_temperature.magnitude,
+                            self.CP_temperature.magnitude,
+                            100) * ureg.K
+
+        if np.isnan(self.H_vap_boil.magnitude):
+            H_vap = self.H_vap
+        else:
+            H_vap = self.H_vap_boil
+
+        cte = H_vap / gas_constant
+        P_arr = self.TP_pressure * \
+            np.exp(cte * (1/self.TP_temperature - 1/T_arr))
+        return T_arr, P_arr
+
+    def antoine_lv(self):
+        """Antoine liquid-vapor line data
+
+        Returns
+        -------
+        tuple
+            A, B and C for SI units. Temperature range (Tmin and Tmax) in Kelvin
+            (temperature array, pressure array, A, B, C, Tmin, Tmax)
+        """
+        # log10(P) = A - (B / (C + T))
+        T_arr = np.linspace(self.TP_temperature.magnitude,
+                            self.CP_temperature.magnitude, 100) * ureg.K
+
+        A = self.antoine_A + np.log10(101325/760)
+        B = self.antoine_B
+        C = self.antoine_C - 273.15
+        Tmin = self.antoine_Tmin + 273.15
+        Tmax = self.antoine_Tmax + 273.15
+
+        right_side = A - (B / (C + T_arr.magnitude))
+
+        P_arr = 10**right_side * ureg.Pa
+
+        return T_arr, P_arr, A, B, C, Tmin, Tmax
+
+    def format_formula(self):
+        """ Display chemical formulas in a proper way
+
+        Returns
+        -------
+        string
+            LaTeX code to display chemical formulas in a proper way
+        """
+        label_formula = re.sub("([0-9])", "_\\1", self.formula)
+        label_formula = '$\mathregular{'+label_formula+'}$'
+        return label_formula
+
+    def _plot_params(self, ax=None):
+        """Internal function for plot parameters.
+
+        Parameters
+        ----------
+        ax : Matplotlib axes, optional
+            axes where the graph will be plotted, by default None
+        """
+        linewidth = 2
+        size = 12
+
+        # grid and ticks settings
+        ax.minorticks_on()
+        ax.grid(b=True, which='major', linestyle='--',
+                linewidth=linewidth - 0.5)
+        ax.grid(b=True, which='minor', axis='both',
+                linestyle=':', linewidth=linewidth - 1)
+        ax.tick_params(which='both', labelsize=size+2)
+        ax.tick_params(which='major', length=6, axis='both')
+        ax.tick_params(which='minor', length=3, axis='both')
+
+        # labels and size
+        ax.xaxis.label.set_size(size+4)
+        ax.yaxis.label.set_size(size+4)
+        # ax.title.set_fontsize(size+6)  # not working, don't know why...
+
+        return
+
+    def plot(self, parts=(1, 1, 0, 1), size=(10, 8), ax=None, T_unit='K',
+             P_unit='Pa', scale_log=True, legend=False, title=True,
+             title_text=''):
+        """Plot function
+
+        Parameters
+        ----------
+        parts : tuple, optional
+            which lines will be plotted, by default (1, 1, 0, 1)
+            By default, the solid-liquid, solid-vapor and liquid-vapor from
+            Antoine equation lines are plotted. This can be changed with 0 and
+            1's in a tuple`. 0 means turn off and 1 means turn on. The order in
+            the tuple is:
+            (solid-liquid Clausius-Clapeyron, solid-vapor Clausius-Clapeyron,
+            liquid-vapor Clausius-Clapeyron, liquid-vapor Antoine)
+        size : tuple, optional
+            plot size, by default (10, 8)
+        ax : Matplotlib axes, optional
+            axes where the graph will be plotted, by default None
+        T_unit : str, optional
+            temperature unit, by default 'K'
+        P_unit : str, optional
+            pressure unit, by default 'Pa'
+        scale_log : bool, optional
+            logarithmic scale, by default True
+        legend : bool, optional
+            If a legend will be shown, by default False
+        title : bool, optional
+            If the plot will have a title, by default True
+        title_text : str, optional
+            Title text, by default ''
+
+        Returns
+        -------
+        Matplotlib axes
+            axes where the graph will be plotted
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize=size, facecolor=(1.0, 1.0, 1.0))
+
+        self._plot_params(ax)
+
+        linewidth = 3.0
+
+        if parts[0] == 1:
+            T_clapeyron_sl, P_clapeyron_sl = self.clapeyron_sl()
+
+            # ax.plot(T_clapeyron_sl.to(T_unit), P_clapeyron_sl.to(P_unit))
+            # in order to avoid long SL lines, limit the pressure values to
+            # those lower than self.CP_pressure
+            P_clapeyron_sl = P_clapeyron_sl[P_clapeyron_sl < self.CP_pressure]
+            ax.plot(T_clapeyron_sl[:len(P_clapeyron_sl)].to(T_unit),
+                    P_clapeyron_sl.to(P_unit),
+                    'k-', label='SL boundary', linewidth=linewidth)
+
+        if parts[1] == 1:
+            T_clapeyron_sv, P_clapeyron_sv = self.clapeyron_sv()
+            ax.plot(T_clapeyron_sv.to(T_unit),
+                    P_clapeyron_sv.to(P_unit),
+                    'b-', label='SV boundary', linewidth=linewidth)
+
+        if parts[2] == 1:
+            T_clapeyron_lv, P_clapeyron_lv = self.clapeyron_lv()
+            ax.plot(T_clapeyron_lv.to(T_unit),
+                    P_clapeyron_lv.to(P_unit),
+                    'g--', label='LV boundary', linewidth=linewidth)
+
+        if parts[3] == 1:
+            T_antoine_lv, P_antoine_lv, *_ = self.antoine_lv()
+            ax.plot(T_antoine_lv.to(T_unit),
+                    P_antoine_lv.to(P_unit),
+                    'r-', label='LV boundary - Antoine', linewidth=linewidth)
+
+        if parts[2] == 1 or parts[3] == 1:
+            ax.scatter(self.CP_temperature, self.CP_pressure,
+                       s=100, label='Critical Point',
+                       facecolors='orange', edgecolors='orange', zorder=3)
+
+        ax.scatter(self.TP_temperature, self.TP_pressure,
+                   s=100, label='Triple Point',
+                   facecolors='m', edgecolors='m', zorder=3)
+
+        if scale_log:
+            ax.set_yscale('log')
+            ax.set_ylabel('log(Pressure / {:~P})'.format(ureg(P_unit).units))
+        else:
+            # setting the y-axis to scientific notation and
+            # getting the order of magnitude
+            ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+            ax.yaxis.major.formatter._useMathText = True
+            ax.figure.canvas.draw()  # Update the text
+            order_magnitude = ax.yaxis.get_offset_text().get_text().replace('\\times', '')
+            ax.yaxis.offsetText.set_visible(False)
+            ax.set_ylabel('Pressure / ' + order_magnitude +
+                          ' {:~P}'.format(ureg(P_unit).units))
+
+        ax.set_xlabel('Temperature / {:~P}'.format(ureg(T_unit).units))
+
+        if legend:
+            ax.legend(loc='best', fontsize=14,
+                      title=self.format_formula(), title_fontsize=14)
+
+        if not title:
+            pass
+        elif title_text == '':
+            ax.set_title('Calculated phase diagram - ' + self.format_formula(),
+                         fontsize=18)
+        else:
+            ax.set_title(title_text, fontsize=18)
+
+        return ax
 
 
 if __name__ == "__main__":
@@ -156,37 +343,8 @@ if __name__ == "__main__":
     print('# {0:^74} #'.format('Phase diagram'))
     print('#'*78)
     print()
-
-    print('provide the following data.' +
-          ' Attention to the units do not forget to convert if necessary.')
-    print()
-
-name_of_substance = str(input("name of substance: "))
-temperature_triple = eval(
-    input('Triple point temperature of substance \ Kelvin: '))
-pressure_triple = eval(input('triple point pressure of substance \ Pascal: '))
-temperature_crit = eval(
-    input('Critical point temperature of substance \ Kelvin: '))
-pressure_crit = eval(input('Critical point pressure of substance \ Pascal: '))
-enthalpy_melt = eval(input('Melting enthalpy of substance \ Joule/mol: '))
-volume_melt = eval(input('Melting volume of substance \ cm3/mol: '))
-enthalpy_sub = eval(input('Sublimation enthalpy of substance \ Joule/mol: '))
-enthalpy_vap = eval(input('Boiling enthalpy of substance \ Joule/mol: '))
-A_ant_init = eval(
-    input('Antoine equation parameters - A of the triple point: '))
-A_ant_fin = eval(
-    input('Antoine equation parameter -  A of the critical point: '))
-B_ant_init = eval(
-    input('Antoine equation parameters - B of the triple point: '))
-B_ant_fin = eval(
-    input('Antoine equation parameter -  B of the critical point: '))
-C_ant_init = eval(
-    input('Antoine equation parameters - C of the triple point: '))
-C_ant_fin = eval(
-    input('Antoine equation parameter -  C of the critical point: '))
-
-
-phase_diagram(temperature_triple, pressure_triple, temperature_crit,
-              pressure_crit, enthalpy_melt, volume_melt, enthalpy_sub,
-              enthalpy_vap, A_ant_init, A_ant_fin, B_ant_init, B_ant_fin,
-              C_ant_init, C_ant_fin)
+    user_input = input('Compound name, formula or CAS number: ')
+    fig, ax = plt.subplots(constrained_layout=True, facecolor=(1, 1, 1))
+    compound = PhaseDiagram(user_input)
+    compound.plot(ax=ax)
+    plt.show()
